@@ -1,6 +1,5 @@
 import numpy as np
 import math
-from Node import Node
 class Element:
 
     def __init__(self, elementNumber, node1, node2, strength, area):
@@ -48,7 +47,3 @@ class Element:
         return math.sqrt(pow(self.node2.getX() - self.node1.getX(),2)
                          + pow(self.node2.getY() - self.node1.getY(), 2))
 
-
-n1 = Node(0, 0, 1)
-n2 = Node(0, 1, 2)
-e = Element(elementNumber=1, node1=n1, node2=n2, strength=200e9, area=1200e-6)

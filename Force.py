@@ -6,11 +6,11 @@ class Force:
         self.direction = direction
         self.node = node
 
-    def getPosition(self):
+    def getNode(self):
         return self.node
 
     def getDirection(self):
-        return self.direction()
+        return self.direction
 
     def getMagnitude(self):
         return self.magnitude
