@@ -39,6 +39,7 @@ for i in range(elements):
     k = k.flatten()
     for idx in range(len(positions)):
         kglobal[positions[idx][0]][positions[idx][1]] += k[idx]
+    print(kglobal)
 
 removed_one = []
 for i in range(len(fixedNodes)):
@@ -61,5 +62,5 @@ kglobal = kglobal[~numpy.all(numpy.abs(kglobal) < 1e-5, axis=1)]
 
 
 
-print(kglobal)
+
 

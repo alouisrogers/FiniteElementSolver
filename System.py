@@ -1,6 +1,7 @@
 import numpy
 import math
 import itertools
+import copy
 
 class System:
 
@@ -23,7 +24,6 @@ class System:
         self.modulus = modulus
         self.area = area
         self.assemble()
-        self.applyBoundaryConditions()
 
     def addForces(self, forces):
         """
@@ -74,7 +74,7 @@ class System:
         and creates a stiffness matrix for the system
         :return: Numpy Array
         """
-        for i in range(self.connectivity):
+        for i in range(len(self.connectivity)):
             nodeA, nodeB = self.connectivity[i]
             if nodeA > nodeB:
                 temp = nodeA
@@ -103,7 +103,7 @@ class System:
             k = k.flatten()
             for idx in range(len(positions)):
                 self.kglobal[positions[idx][0]][positions[idx][1]] += k[idx]
-            return self.kglobal
+        return self.kglobal
 
     def applyBoundaryConditions(self):
         """
@@ -111,6 +111,8 @@ class System:
         variables from the equations relating displacement to force
         :return: Void
         """
+        kglobal = copy.deepcopy(self.kglobal)
+        forces = copy.deepcopy(self.forces)
         removed_one = []
         for i in range(len(self.fixedNodes)):
             removed_one.append(self.fixedNodes[i] * 2)
@@ -118,24 +120,51 @@ class System:
 
         removed_one.sort(reverse=True)
         for pos in removed_one:
-            self.kglobal = numpy.delete(self.kglobal, (pos), axis=0)
-            self.kglobal = numpy.delete(self.kglobal, (pos), axis=1)
-            self.forces = numpy.delete(self.forces, (pos))
+            kglobal = numpy.delete(kglobal, (pos), axis=0)
+            kglobal = numpy.delete(kglobal, (pos), axis=1)
+            forces = numpy.delete(forces, (pos), axis=0)
 
-        zeroColumns = numpy.all(numpy.abs(self.kglobal) < 1e-5, axis=0)
-        zeroRows = numpy.all(numpy.abs(self.kglobal) < 1e-5, axis=1)
-        for row in zeroRows:
-            self.forces = numpy.delete(self.forces, (row))
+        zeroColumns = numpy.all(numpy.abs(kglobal) < 1e-5, axis=0)
+        zeroRows = numpy.all(numpy.abs(kglobal) < 1e-5, axis=1)
 
-        self.kglobal = self.kglobal[:, ~numpy.all(numpy.abs(self.kglobal) < 1e-5, axis=0)]
-        self.kglobal = self.kglobal[~numpy.all(numpy.abs(self.kglobal) < 1e-5, axis=1)]
+        kglobal = kglobal[:, ~numpy.all(numpy.abs(kglobal) < 1e-5, axis=0)]
+        kglobal = kglobal[~numpy.all(numpy.abs(kglobal) < 1e-5, axis=1)]
+
+        kglobalidx = 0
+        removed = copy.deepcopy(removed_one)
+        removed.reverse()
+        for idx in range(0, len(removed) - 1):
+            if removed[idx + 1] - removed[idx] > 1:
+                if zeroRows[kglobalidx]:
+                    forces = numpy.delete(forces, (kglobalidx))
+                    removed_one.append(idx+kglobalidx)
+                if zeroRows[kglobalidx + 1]:
+                    forces = numpy.delete(forces, (kglobalidx))
+                    removed_one.append(idx+kglobalidx+1)
+                kglobalidx += 2
+
+        for row in range(len(zeroRows)):
+            if zeroRows[row]:
+                forces = numpy.delete(forces, (row))
+
+        return kglobal, forces, removed_one
 
     def computeDisplacements(self):
         """
         Solves the system using the given parameters
         :return: Returns the displacement of each node in the x and y coordinates
         """
-        return numpy.matmul(numpy.linalg.inv(self.kglobal), self.forces)
+        kglobal, forces, removed_one = self.applyBoundaryConditions()
+        allDisplacements = numpy.zeros(len(self.nodes) * 2)
+        displacements = numpy.matmul(numpy.linalg.inv(kglobal), forces)
+        i = 0
+        for idx in range(len(allDisplacements)):
+            if idx in removed_one:
+                allDisplacements[idx] = 0
+
+            else:
+                allDisplacements[idx] = displacements.pop(0)
+
 
     def computeStresses(self):
         stresses = []
@@ -149,12 +178,19 @@ class System:
             Ay = self.nodes[nodeA][1]
             Bx = self.nodes[nodeB][0]
             By = self.nodes[nodeB][1]
+            globalDisplacements = self.computeDisplacements()
+            localDisplacements = numpy.array([globalDisplacements[2 * nodeA],
+                                              globalDisplacements[2*nodeA+1],
+                                              globalDisplacements[2*nodeB],
+                                              globalDisplacements[2*nodeB+1]])
         length = math.sqrt((math.pow(Ax - Bx, 2) + math.pow(Ay - By, 2)))
         theta = math.radians(math.atan(By - Ay / (Bx - Ax)))
         stresses.append(self.modulus * numpy.matmul(numpy.matmul(numpy.array([-1/length, 1/length]),
                                                  [[math.cos(theta), math.sin(theta), 0, 0],
                                                   [0,0, math.cos(theta), math.sin(theta)]]),
-                                    numpy.array([self.computeDisplacements()])))
+                                    localDisplacements))
 
 
 
+s = System(1,1,[(0,0), (1,0), (2,0)],[0,2],[(0,1), (1,2)], [])
+print(s.computeDisplacements())
